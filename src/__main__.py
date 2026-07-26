@@ -1,54 +1,89 @@
 import sys
 
-from src.custom_errors import ParsingErrors
-from src.graph import Graph
-from src.parser import MapParser
-from src.simulator import Simulator
+from src.parser.map_parser import parse_file, ParseError
+from src.graph.graph import Graph
+from src.models.zone import Zone
+from src.models.drone import Drone
+from src.pathfinding.pathfinder import Pathfinder
+from src.simulation.simulator import ReservationTable
+from src.visualization.visualizer import VisualizerPrint
+from src.visualization.pg_visualizer import Visualizer
 
 
 def main() -> None:
-    # Safely parse command line arguments
-    args = sys.argv[1:]
+    """
+    Run the Fly-in simulation.
 
-    # Check for the visualization flag
-    visualize = "--visualize" in args or "-v" in args
-
-    # Filter out flags to find the actual map filepath
-    filepaths = [arg for arg in args if not arg.startswith("-")]
-
-    if len(filepaths) != 1:
-        print("Usage: python3 main.py <map_file.txt> [--visualize]")
+    Parses the input map, computes reservation-aware paths for all
+    drones, prints the simulation in the terminal, and launches the
+    pygame visualizer.
+    """
+    if len(sys.argv) != 2:
+        print("Usage: make run MAP=<map_file>")
         sys.exit(1)
 
-    filepath = filepaths[0]
-
+    filename = sys.argv[1]
     try:
-        # Phase 1: Parse and Validate
-        parser = MapParser(filepath)
-        parser.parse()
-
-        # Phase 2: Build the Graph Engine
-        graph = Graph(parser)
-
-        # Phase 3: Run the Time-Space Simulation
-        simulator = Simulator(graph)
-
-        if simulator.run():
-            # Phase 4: Print the Results (Terminal)
-            simulator.print_simulation()
-
-            # Phase 5: Interactive Visualizer
-            if visualize:
-                from src.visualizer import visualize_pygame
-                print("\n[🎮] Launching Pygame Engine...")
-                visualize_pygame(parser, simulator)
-
-    except ParsingErrors as e:
-        print(f"{e}")
+        data = parse_file(filename)
+    except ParseError as e:
+        print(f"[ERROR]: {e}")
         sys.exit(1)
-    except Exception as e:
-        print(f"Critical Crash: {e}")
-        sys.exit(1)
+
+    graph = Graph(data.zones, data.connections)
+    reservations = ReservationTable(graph)
+    pathfinder = Pathfinder()
+    visualizer = VisualizerPrint()
+
+    total_turns = 0
+    all_paths: list[list[tuple[Zone, int]]] = []
+
+    for drone_id in range(1, data.nb_drones + 1):
+        path = pathfinder.find_path(
+            graph,
+            data.start_zone,
+            data.end_zone,
+            data.nb_drones,
+            reservations
+        )
+
+        if not path:
+            print(f"Drone {drone_id}: No path found")
+            continue
+
+        all_paths.append(path)
+
+        finish_turn = path[-1][1]
+        total_turns = max(total_turns, finish_turn)
+        for i, (zone, turn) in enumerate(path):
+            reservations.reserve(zone.name, turn)
+            if i == 0:
+                continue
+            prev_zone, _ = path[i - 1]
+            if zone == prev_zone:
+                continue
+            movement_cost = zone.get_movement_cost()
+            for t in range(turn - movement_cost + 1, turn + 1):
+                reservations.reserve_connection(
+                    prev_zone.name,
+                    zone.name,
+                    t
+                )
+
+    visualizer.print_simulation(all_paths, total_turns)
+
+    # Create Drone objects for the pygame visualizer
+    drones: list[Drone] = []
+
+    for drone_id, drone_path in enumerate(all_paths, start=1):
+        drone = Drone(
+            drone_id=drone_id,
+            path=drone_path,
+        )
+        drones.append(drone)
+
+    # Launch pygame visualizer
+    pg_visualizer = Visualizer(graph, drones, total_turns)
+    pg_visualizer.run()
 
 
 if __name__ == "__main__":
