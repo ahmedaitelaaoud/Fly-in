@@ -247,13 +247,13 @@ class Visualizer:
         elif key == pygame.K_a:
             self.auto_play = not self.auto_play
         elif key == pygame.K_RIGHT:
-            self.camera_x -= 50
-        elif key == pygame.K_LEFT:
             self.camera_x += 50
+        elif key == pygame.K_LEFT:
+            self.camera_x -= 50
         elif key == pygame.K_UP:
-            self.camera_y -= 50
-        elif key == pygame.K_DOWN:
             self.camera_y += 50
+        elif key == pygame.K_DOWN:
+            self.camera_y -= 50
 
     def _update_auto_play(self, dt: int) -> None:
         """
