@@ -28,7 +28,9 @@ def main() -> None:
     except ParseError as e:
         print(f"[ERROR]: {e}")
         sys.exit(1)
-
+    # print(""*10)
+    # print(vars(data))
+    # print(""*10)
     graph = Graph(data.zones, data.connections)
     reservations = ReservationTable(graph)
     pathfinder = Pathfinder()
@@ -69,6 +71,11 @@ def main() -> None:
                     t
                 )
 
+    if not all_paths:
+        print("[ERROR]: No valid path found for any drone. "
+              "The graph may be disconnected.")
+        sys.exit(1)
+
     visualizer.print_simulation(all_paths, total_turns)
 
     # Create Drone objects for the pygame visualizer
@@ -82,8 +89,11 @@ def main() -> None:
         drones.append(drone)
 
     # Launch pygame visualizer
-    pg_visualizer = Visualizer(graph, drones, total_turns)
-    pg_visualizer.run()
+    try:
+        pg_visualizer = Visualizer(graph, drones, total_turns)
+        pg_visualizer.run()
+    except Exception as e:
+        print(f"[INFO] Pygame visualization unavailable: {e}")
 
 
 if __name__ == "__main__":
