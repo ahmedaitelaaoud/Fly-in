@@ -3,11 +3,9 @@ import sys
 from src.parser.map_parser import parse_file, ParseError
 from src.graph.graph import Graph
 from src.models.zone import Zone
-from src.models.drone import Drone
 from src.pathfinding.pathfinder import Pathfinder
 from src.simulation.simulator import ReservationTable
-from src.visualization.visualizer import VisualizerPrint
-from src.visualization.pg_visualizer import Visualizer
+from src.visualization.visualizer import TerminalVisualizer
 
 
 def main() -> None:
@@ -15,8 +13,7 @@ def main() -> None:
     Run the Fly-in simulation.
 
     Parses the input map, computes reservation-aware paths for all
-    drones, prints the simulation in the terminal, and launches the
-    pygame visualizer.
+    drones, and prints the simulation in the terminal using ANSI colors.
     """
     if len(sys.argv) != 2:
         print("Usage: make run MAP=<map_file>")
@@ -28,13 +25,11 @@ def main() -> None:
     except ParseError as e:
         print(f"[ERROR]: {e}")
         sys.exit(1)
-    # print(""*10)
-    # print(vars(data))
-    # print(""*10)
+
     graph = Graph(data.zones, data.connections)
     reservations = ReservationTable(graph)
     pathfinder = Pathfinder()
-    visualizer = VisualizerPrint()
+    visualizer = TerminalVisualizer()
 
     total_turns = 0
     all_paths: list[list[tuple[Zone, int]]] = []
@@ -76,24 +71,7 @@ def main() -> None:
               "The graph may be disconnected.")
         sys.exit(1)
 
-    visualizer.print_simulation(all_paths, total_turns)
-
-    # Create Drone objects for the pygame visualizer
-    drones: list[Drone] = []
-
-    for drone_id, drone_path in enumerate(all_paths, start=1):
-        drone = Drone(
-            drone_id=drone_id,
-            path=drone_path,
-        )
-        drones.append(drone)
-
-    # Launch pygame visualizer
-    try:
-        pg_visualizer = Visualizer(graph, drones, total_turns)
-        pg_visualizer.run()
-    except Exception as e:
-        print(f"[INFO] Pygame visualization unavailable: {e}")
+    visualizer.print_simulation(graph, all_paths, total_turns)
 
 
 if __name__ == "__main__":
